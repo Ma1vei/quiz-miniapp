@@ -20,16 +20,18 @@ body{font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Ro
   padding:12px 12px calc(24px + env(safe-area-inset-bottom));overflow-x:hidden}
 body.fb-btn{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
 button{font:inherit;color:inherit}
-/* header: stepper + timer */
-#top{display:flex;align-items:center;gap:12px;margin:2px 2px 12px}
-#steps{display:flex;gap:6px;flex:1}
-.st{flex:1;height:30px;border:0;border-radius:10px;background:var(--card);color:var(--hint);font-weight:600;font-size:14px;
-  display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
-.st.done{color:var(--acc)}
+/* header: stepper (fits 10 on a 390px phone) */
+#top{margin:2px 0 12px}
+#steps{display:flex;flex-wrap:wrap;gap:4px}
+.st{flex:1 1 0;min-width:26px;height:32px;border:0;border-radius:9px;background:var(--card);color:var(--hint);font-weight:600;font-size:13px;
+  font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+  transition:background .2s,color .2s,box-shadow .2s}
+.st.done{background:var(--tint);color:var(--acc)}
 .st.cur{background:var(--acc);color:var(--atx)}
-#timer{font:600 15px/1 ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;color:var(--sub);
-  min-width:54px;text-align:right;transition:color .3s}
-#timer.warn{color:var(--red)}
+#steps.many .st{height:30px;font-size:12.5px}
+#meta{display:flex;justify-content:space-between;align-items:center;margin:8px 2px 0;font-size:13px;color:var(--hint)}
+#meta b{color:var(--tx);font-weight:600}
+#hint{font-size:13px;color:var(--amber);margin:10px 4px 0;text-align:center}
 /* cards */
 #view{overflow:hidden;overflow:clip;margin:0 -12px;padding:0 12px}
 #track{display:flex;align-items:flex-start;transition:transform .32s cubic-bezier(.2,.8,.2,1);will-change:transform}
@@ -54,10 +56,12 @@ textarea::placeholder{color:var(--hint)}
 .o .ot{flex:1;word-wrap:break-word}
 .o.sel{border-color:var(--acc);background:var(--tint)}
 .o.sel .k{background:var(--acc);border-color:var(--acc);color:var(--atx)}
-.nx{display:flex;justify-content:flex-end;margin-top:14px}
+.nx{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.nx .pos{font-size:13px;color:var(--hint);font-variant-numeric:tabular-nums}
+.nb.prev svg{transform:rotate(180deg)}
+.nb[disabled]{visibility:hidden}
 .nb{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);color:var(--acc);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .nb svg{width:22px;height:22px}
-body.expired .q{opacity:.5;pointer-events:none}
 /* fallback send button (outside Telegram) */
 #send{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));height:52px;border:0;border-radius:14px;
   background:var(--acc);color:var(--atx);font-weight:600;font-size:16px;cursor:pointer;transition:opacity .2s}
@@ -128,7 +132,16 @@ async function decode(raw){
   }
   const D=JSON.parse(txt);
   if(!D||!Array.isArray(D.q)||!D.q.length)throw new Error('empty round');
+  if(D.q.some(q=>q.k&&!q.en))await fillFromBank(D);
   return D;
+}
+// questions_public.json next to this page: {"v":..,"q":{key:[type,en,ru,options?]}} (no answers). Rounds may pass only {i,k}.
+async function fillFromBank(D){
+  let P=null;
+  try{const r=await fetch(new URL('questions_public.json',location.href).href,{cache:'no-cache'});if(r.ok)P=await r.json()}catch(e){}
+  if(!P||!P.q)throw new Error('bank');
+  D.q=D.q.map(q=>{if(!q.k||q.en)return q;const e=P.q[q.k];if(!e)throw new Error('stale');
+    const o={i:q.i,t:e[0],en:e[1],ru:e[2]||''};if(e[0]==='c')o.o=e[3]||[];return o});
 }
 function ruLine(txt){const w=el('div','rw'),r=el('span','ru',txt);r.onclick=()=>{r.classList.toggle('on');HF.sel()};w.appendChild(r);return w}
 const L='ABCDEFGHIJKL';
@@ -138,12 +151,13 @@ const store={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch
 
 function renderAsk(D){
   const app=$('#app'),KEY='quiz-draft-'+D.r,n=D.q.length,draft=store.get(KEY)||{},ans={};
-  let step=0,expired=false,sent=false;
+  let step=0,sent=false;   // no answer time limit: the round stays open until sent
   D.q.forEach(q=>{const v=(draft.a||{})[q.i];if(!v)return;
     if(q.t==='c'&&Number.isInteger(v.c)&&v.c<q.o.length)ans[q.i]={i:q.i,c:v.c};
     else if(q.t!=='c'&&typeof v.x==='string'&&v.x.trim())ans[q.i]={i:q.i,x:v.x}});
-  const top=el('div');top.id='top';const steps=el('div');steps.id='steps';const timer=el('div');timer.id='timer';
-  top.appendChild(steps);if(D.dl)top.appendChild(timer);
+  const top=el('div');top.id='top';const steps=el('div');steps.id='steps';if(n>6)steps.classList.add('many');
+  const meta=el('div');meta.id='meta';const mPos=el('span'),mDone=el('span');meta.appendChild(mPos);meta.appendChild(mDone);
+  top.appendChild(steps);if(n>1)top.appendChild(meta);
   const view=el('div');view.id='view';view.addEventListener('scroll',()=>{if(view.scrollLeft)view.scrollLeft=0});const track=el('div');track.id='track';view.appendChild(track);
   app.appendChild(top);app.appendChild(view);app.classList.add('fade');
   const pills=[],cards=[];
@@ -163,8 +177,11 @@ function renderAsk(D){
       ta.addEventListener('focus',()=>{if(step!==idx)go(idx)});
       box.appendChild(ta);box._grow=grow;
     }
-    if(idx<n-1){const nx=el('div','nx'),nb=el('button','nb');nb.type='button';nb.innerHTML=ARROW;nb.setAttribute('aria-label','next');
-      nb.onclick=()=>{go(idx+1);HF.tap()};nx.appendChild(nb);box.appendChild(nx)}
+    if(n>1){const nx=el('div','nx'),pb=el('button','nb prev'),nb=el('button','nb');
+      pb.type=nb.type='button';pb.innerHTML=nb.innerHTML=ARROW;pb.setAttribute('aria-label','previous');nb.setAttribute('aria-label','next');
+      if(idx===0)pb.disabled=true;if(idx===n-1)nb.disabled=true;
+      pb.onclick=()=>{go(idx-1);HF.tap()};nb.onclick=()=>{go(idx+1);HF.tap()};
+      nx.appendChild(pb);nx.appendChild(nb);box.appendChild(nx)}
     track.appendChild(box);cards.push(box);
   });
   if(n<2)steps.style.visibility='hidden';
@@ -172,28 +189,34 @@ function renderAsk(D){
     cards.forEach((c,j)=>{c.setAttribute('aria-hidden',j!==step);c.style.opacity=j===step?1:0});
     const a=document.activeElement;if(a&&a.tagName==='TEXTAREA'&&cards[step]!==a.closest('.q'))a.blur();
     if(IN_TG&&TG.BackButton){try{step>0?TG.BackButton.show():TG.BackButton.hide()}catch(e){}}
-    pills.forEach((p,j)=>p.classList.toggle('cur',j===step));save()}
+    pills.forEach((p,j)=>p.classList.toggle('cur',j===step));mPos.innerHTML='Вопрос <b>'+(step+1)+'</b> из '+n;save()}
   if(IN_TG&&TG.BackButton)try{TG.BackButton.onClick(()=>{go(step-1);HF.tap()})}catch(e){}
   // swipe between cards
   let sx=0,sy=0;view.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
   view.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
     if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.6){const t=step+(dx<0?1:-1);if(t>=0&&t<n){go(t);HF.tap()}}},{passive:true});
   function save(){if(!sent)store.set(KEY,{a:ans,s:step,t:Date.now()})}
+  const LIMIT=4096,enc=s=>new TextEncoder().encode(s).length;
+  const hint=el('div');hint.id='hint';hint.hidden=true;hint.textContent='Ответы длиннее лимита Telegram (4 КБ) — самые длинные будут чуть сокращены.';app.appendChild(hint);
+  const list=()=>D.q.filter(q=>ans[q.i]).map(q=>ans[q.i].x!=null?{i:q.i,x:ans[q.i].x.trim()}:{i:q.i,c:ans[q.i].c});
+  // sendData limit: trim the longest text answer first (fair water-filling), mark the payload with tr:1
+  function payload(){let a=list(),o={r:D.r,a},p=JSON.stringify(o),tr=false;
+    while(enc(p)>LIMIT){const t=a.filter(x=>x.x).sort((x,y)=>enc(y.x)-enc(x.x))[0];if(!t)break;t.x=t.x.slice(0,Math.max(0,t.x.length-20));tr=true;
+      o=tr?{r:D.r,a,tr:1}:{r:D.r,a};p=JSON.stringify(o)}
+    return p}
   const fb=$('#send'),MB=IN_TG&&TG.MainButton?TG.MainButton:null;
   const nDone=()=>D.q.filter(q=>ans[q.i]).length;
-  function canSend(){return !expired&&!sent&&nDone()===n}   // only when EVERY question has an answer
+  function canSend(){return !sent&&nDone()===n}   // only when EVERY question has an answer
   function upd(){
     D.q.forEach((q,j)=>pills[j].classList.toggle('done',!!ans[q.i]));
-    if(MB){try{const on=canSend();MB.setParams({text:on||sent?'Отправить':'Отправить · '+nDone()+'/'+n,is_visible:!expired,is_active:on,
+    mDone.textContent='Отвечено '+nDone()+'/'+n;hint.hidden=enc(JSON.stringify({r:D.r,a:list()}))<=LIMIT;
+    if(MB){try{const on=canSend();MB.setParams({text:on||sent?'Отправить':'Отправить · '+nDone()+'/'+n,is_visible:true,is_active:on,
         color:on?(TG.themeParams.button_color||'#2481cc'):(TG.themeParams.hint_color||'#8e8e93'),text_color:TG.themeParams.button_text_color||'#ffffff'})}catch(e){}}
-    else{fb.hidden=expired;fb.disabled=!canSend();fb.textContent=canSend()||sent?'Отправить':'Отправить · '+nDone()+'/'+n;document.body.classList.toggle('fb-btn',!expired)}
+    else{fb.hidden=false;fb.disabled=!canSend();fb.textContent=canSend()||sent?'Отправить':'Отправить · '+nDone()+'/'+n;document.body.classList.add('fb-btn')}
     save()}
   function submit(){
     if(!canSend())return;
-    const list=()=>D.q.filter(q=>ans[q.i]).map(q=>ans[q.i].x!=null?{i:q.i,x:ans[q.i].x.trim()}:{i:q.i,c:ans[q.i].c});
-    let a=list(),p=JSON.stringify({r:D.r,a});
-    while(new TextEncoder().encode(p).length>4096){   // sendData limit: trim the longest text answer
-      const t=a.filter(x=>x.x).sort((x,y)=>y.x.length-x.x.length)[0];if(!t)break;t.x=t.x.slice(0,t.x.length-100);p=JSON.stringify({r:D.r,a})}
+    const p=payload();
     sent=true;store.del(KEY);HF.note('success');
     if(MB){try{MB.showProgress&&MB.showProgress()}catch(e){}}else fb.disabled=true;
     if(TG&&TG.sendData&&TG.platform&&TG.platform!=='unknown'){try{TG.sendData(p)}catch(e){sent=false;HF.note('error');try{TG.showAlert('Не удалось отправить: '+e.message)}catch(_){alert('Не удалось отправить')}if(MB){try{MB.hideProgress()}catch(_){}}else fb.disabled=false}}else document.body.setAttribute('data-sent',p);
@@ -201,10 +224,8 @@ function renderAsk(D){
   if(MB)MB.onClick(submit);fb.onclick=submit;
   go(Math.min(+draft.s||0,n-1));upd();
   requestAnimationFrame(()=>cards.forEach(c=>c._grow&&c._grow()));
-  if(D.dl){const tick=()=>{const r=Math.max(0,Math.floor(D.dl-Date.now()/1000));
-      timer.textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');timer.classList.toggle('warn',r<60);
-      if(r===0&&!expired){expired=true;document.body.classList.add('expired');HF.note('warning');upd();clearInterval(iv)}};
-    const iv=setInterval(tick,1000);tick()}
+  // drop drafts of old rounds (> 14 days)
+  try{for(let j=localStorage.length-1;j>=0;j--){const k=localStorage.key(j);if(k&&k.indexOf('quiz-draft-')===0&&k!==KEY){const v=store.get(k);if(!v||!v.t||Date.now()-v.t>14*864e5)store.del(k)}}}catch(e){}
 }
 function verdictChip(s){const c=/^Верно/.test(s)?'g':/^Неверно/.test(s)?'r':/^\d+\/10$/.test(s)?(+s.split('/')[0]>=8?'g':+s.split('/')[0]>=5?'y':'r'):'n';return el('div','chip '+c,s)}
 function renderRes(D){
@@ -221,7 +242,7 @@ function renderRes(D){
 function showError(code){
   const a=$('#app');a.innerHTML='';const e=el('div','err fade');
   e.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>';
-  e.appendChild(el('b',null,code==='nodata'?'Нет вопросов в ссылке':'Не удалось открыть вопросы'));
+  e.appendChild(el('b',null,code==='nodata'?'Нет вопросов в ссылке':code==='bank'||code==='stale'?'Не удалось загрузить вопросы':'Не удалось открыть вопросы'));
   e.appendChild(el('div',null,'Открой раунд заново кнопкой «Ответить».'));a.appendChild(e);
   document.body.setAttribute('data-error',code);
 }
