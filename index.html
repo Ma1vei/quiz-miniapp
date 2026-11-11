@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#fff);--tx:var(--tg-theme-text-color,#111);--hint:var(--tg-theme-hint-color,#888);
+--btn:var(--tg-theme-button-color,#2a8bf2);--btx:var(--tg-theme-button-text-color,#fff);--sec:var(--tg-theme-secondary-bg-color,#f1f1f4)}
+*{box-sizing:border-box}body{margin:0;padding:12px 14px 90px;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,sans-serif}
+.q{padding:12px;margin:0 0 14px;border-radius:12px;background:var(--sec)}
+.en{font-weight:600;margin:0 0 6px}
+.ru{color:var(--hint);filter:blur(5px);cursor:pointer;margin:0 0 10px;user-select:none;transition:filter .2s}
+.ru.on{filter:none}
+textarea{width:100%;min-height:96px;padding:10px;border-radius:10px;border:1px solid var(--hint);background:var(--bg);color:var(--tx);font:inherit;resize:vertical}
+.o{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--hint);background:var(--bg);color:var(--tx);font:inherit}
+.o.sel{border:2px solid var(--btn)}.o.ok{background:#2f9e55;color:#fff;border-color:#2f9e55}.o.bad{background:#d9483b;color:#fff;border-color:#d9483b}
+#t{color:var(--hint);font-size:.9em;text-align:right;margin-bottom:8px}
+#send{position:fixed;left:14px;right:14px;bottom:14px;padding:14px;border:0;border-radius:12px;background:var(--btn);color:var(--btx);font:600 16px system-ui}
+#send:disabled{opacity:.5}
+.sc{font-weight:700;margin:8px 0 4px}.fb{margin:4px 0}.ma{color:var(--hint);margin-top:6px;white-space:pre-wrap}
+</style></head><body>
+<div id="t"></div><div id="app"></div><button id="send" hidden>Отправить</button>
+<script>
+const TG=(window.Telegram&&Telegram.WebApp)||null;
+if(TG){TG.ready();TG.expand();}
+const $=s=>document.querySelector(s);
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+async function decode(h){
+  const b=atob(h.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((h.length+3)%4));
+  const bytes=Uint8Array.from(b,c=>c.charCodeAt(0));
+  const s=new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')));
+  return JSON.parse(await s.text());
+}
+function ruLine(txt){const r=el('div','ru',txt);r.onclick=()=>r.classList.toggle('on');return r}
+const L='ABCDEFGHIJKL';
+function renderAsk(D){
+  const app=$('#app'),ans={};
+  D.q.forEach(q=>{
+    const box=el('div','q');box.appendChild(el('div','en',q.en));if(q.ru)box.appendChild(ruLine(q.ru));
+    if(q.t==='c'){const bs=[];q.o.forEach((o,k)=>{const b=el('button','o',L[k]+') '+o);b.type='button';
+        b.onclick=()=>{bs.forEach(x=>x.classList.remove('sel'));b.classList.add('sel');ans[q.i]={i:q.i,c:k};upd()};bs.push(b);box.appendChild(b)})}
+    else{const ta=el('textarea');ta.placeholder='Answer in English…';ta.oninput=()=>{const v=ta.value.trim();if(v)ans[q.i]={i:q.i,x:v};else delete ans[q.i];upd()};box.appendChild(ta)}
+    app.appendChild(box)});
+  const btn=$('#send');btn.hidden=false;
+  function upd(){btn.disabled=Object.keys(ans).length===0}
+  upd();
+  btn.onclick=()=>{
+    const payload=JSON.stringify({r:D.r,a:Object.values(ans)});
+    let p=payload;while(new TextEncoder().encode(p).length>4096){ // trim longest text answer until it fits the 4096-byte sendData limit
+      const a=Object.values(ans).filter(x=>x.x).sort((x,y)=>y.x.length-x.x.length)[0];if(!a)break;a.x=a.x.slice(0,a.x.length-100);p=JSON.stringify({r:D.r,a:Object.values(ans)})}
+    btn.disabled=true;
+    if(TG&&TG.sendData){TG.sendData(p)}else{document.body.setAttribute('data-sent',p)}
+  };
+  const tick=()=>{const r=Math.max(0,Math.floor(D.dl-Date.now()/1000));$('#t').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
+    if(r===0){btn.disabled=true}};tick();setInterval(tick,1000);
+}
+function renderRes(D){
+  const app=$('#app');
+  D.q.forEach(q=>{const box=el('div','q');box.appendChild(el('div','en',q.en));if(q.ru)box.appendChild(ruLine(q.ru));
+    if(q.t==='c'){q.o.forEach((o,k)=>{const b=el('button','o',L[k]+') '+o);b.disabled=true;
+        if(q.k.indexOf(k)>=0)b.classList.add('ok');else if(q.ch===k)b.classList.add('bad');box.appendChild(b)})}
+    else if(q.ua){box.appendChild(el('div','ma',q.ua))}
+    box.appendChild(el('div','sc',q.s));if(q.fb)box.appendChild(el('div','fb',q.fb));
+    if(q.ma)box.appendChild(el('div','ma',q.ma));app.appendChild(box)});
+}
+(async()=>{
+  const h=location.hash.slice(1);
+  if(!h){$('#app').textContent='Нет данных';return}
+  try{const D=await decode(h);(D.m==='res'?renderRes:renderAsk)(D);document.body.setAttribute('data-ready','1')}
+  catch(e){$('#app').textContent='Ошибка: '+e.message;document.body.setAttribute('data-error',e.message)}
+})();
+</script></body></html>
