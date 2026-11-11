@@ -180,12 +180,13 @@ function renderAsk(D){
     if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.6){const t=step+(dx<0?1:-1);if(t>=0&&t<n){go(t);HF.tap()}}},{passive:true});
   function save(){if(!sent)store.set(KEY,{a:ans,s:step,t:Date.now()})}
   const fb=$('#send'),MB=IN_TG&&TG.MainButton?TG.MainButton:null;
-  function canSend(){return !expired&&!sent&&Object.keys(ans).length>0}
+  const nDone=()=>D.q.filter(q=>ans[q.i]).length;
+  function canSend(){return !expired&&!sent&&nDone()===n}   // only when EVERY question has an answer
   function upd(){
     D.q.forEach((q,j)=>pills[j].classList.toggle('done',!!ans[q.i]));
-    if(MB){try{const on=canSend();MB.setParams({text:'Отправить',is_visible:!expired,is_active:on,
+    if(MB){try{const on=canSend();MB.setParams({text:on||sent?'Отправить':'Отправить · '+nDone()+'/'+n,is_visible:!expired,is_active:on,
         color:on?(TG.themeParams.button_color||'#2481cc'):(TG.themeParams.hint_color||'#8e8e93'),text_color:TG.themeParams.button_text_color||'#ffffff'})}catch(e){}}
-    else{fb.hidden=expired;fb.disabled=!canSend();document.body.classList.toggle('fb-btn',!expired)}
+    else{fb.hidden=expired;fb.disabled=!canSend();fb.textContent=canSend()||sent?'Отправить':'Отправить · '+nDone()+'/'+n;document.body.classList.toggle('fb-btn',!expired)}
     save()}
   function submit(){
     if(!canSend())return;
