@@ -1,29 +1,104 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:var(--tg-theme-bg-color,#fff);--tx:var(--tg-theme-text-color,#111);--hint:var(--tg-theme-hint-color,#888);
---btn:var(--tg-theme-button-color,#2a8bf2);--btx:var(--tg-theme-button-text-color,#fff);--sec:var(--tg-theme-secondary-bg-color,#f1f1f4)}
-*{box-sizing:border-box}body{margin:0;padding:12px 14px 90px;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,sans-serif}
-.q{padding:12px;margin:0 0 14px;border-radius:12px;background:var(--sec)}
-.en{font-weight:600;margin:0 0 6px}
-.ru{color:var(--hint);filter:blur(5px);cursor:pointer;margin:0 0 10px;user-select:none;transition:filter .2s}
-.ru.on{filter:none}
-textarea{width:100%;min-height:96px;padding:10px;border-radius:10px;border:1px solid var(--hint);background:var(--bg);color:var(--tx);font:inherit;resize:vertical}
-.o{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:10px;border:1px solid var(--hint);background:var(--bg);color:var(--tx);font:inherit}
-.o.sel{border:2px solid var(--btn)}.o.ok{background:#2f9e55;color:#fff;border-color:#2f9e55}.o.bad{background:#d9483b;color:#fff;border-color:#d9483b}
-#t{color:var(--hint);font-size:.9em;text-align:right;margin-bottom:8px}
-#send{position:fixed;left:14px;right:14px;bottom:14px;padding:14px;border:0;border-radius:12px;background:var(--btn);color:var(--btx);font:600 16px system-ui}
-#send:disabled{opacity:.5}
-.sc{font-weight:700;margin:8px 0 4px}.fb{margin:4px 0}.ma{color:var(--hint);margin-top:6px;white-space:pre-wrap}
+:root{
+  --f-bg:#f2f2f7;--f-card:#fff;--f-tx:#000;--f-hint:#8e8e93;
+  --bg:var(--tg-theme-secondary-bg-color,var(--f-bg));--card:var(--tg-theme-section-bg-color,var(--tg-theme-bg-color,var(--f-card)));
+  --tx:var(--tg-theme-text-color,var(--f-tx));--hint:var(--tg-theme-hint-color,var(--f-hint));--sub:var(--tg-theme-subtitle-text-color,var(--hint));
+  --acc:var(--tg-theme-button-color,#2481cc);--atx:var(--tg-theme-button-text-color,#fff);
+  --red:var(--tg-theme-destructive-text-color,#e5484d);--green:#31b545;--amber:#f5a524;
+  --line:color-mix(in srgb,var(--hint) 28%,transparent);--soft:color-mix(in srgb,var(--hint) 12%,transparent);
+  --tint:color-mix(in srgb,var(--acc) 13%,var(--card));
+}
+@media (prefers-color-scheme:dark){:root{--f-bg:#0f0f10;--f-card:#1c1c1e;--f-tx:#fff;--f-hint:#8d8e93}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx)}
+body{font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;min-height:100vh;
+  padding:12px 12px calc(24px + env(safe-area-inset-bottom));overflow-x:hidden}
+body.fb-btn{padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit}
+/* header: stepper + timer */
+#top{display:flex;align-items:center;gap:12px;margin:2px 2px 12px}
+#steps{display:flex;gap:6px;flex:1}
+.st{flex:1;height:30px;border:0;border-radius:10px;background:var(--card);color:var(--hint);font-weight:600;font-size:14px;
+  display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
+.st.done{color:var(--acc)}
+.st.cur{background:var(--acc);color:var(--atx)}
+#timer{font:600 15px/1 ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;color:var(--sub);
+  min-width:54px;text-align:right;transition:color .3s}
+#timer.warn{color:var(--red)}
+/* cards */
+#view{overflow:hidden;overflow:clip;margin:0 -12px;padding:0 12px}
+#track{display:flex;align-items:flex-start;transition:transform .32s cubic-bezier(.2,.8,.2,1);will-change:transform}
+.q{flex:0 0 100%;margin-right:24px;background:var(--card);border-radius:16px;padding:18px 16px 16px;transition:opacity .25s}
+.q:last-child{margin-right:0}
+.en{font-size:17px;font-weight:600;line-height:1.4;margin:0 0 10px;word-wrap:break-word}
+.ru{display:inline;color:var(--sub);font-size:15px;line-height:1.5;filter:blur(5px);cursor:pointer;user-select:none;
+  background:var(--soft);border-radius:6px;padding:1px 4px;-webkit-box-decoration-break:clone;box-decoration-break:clone;
+  transition:filter .3s,background .3s}
+.ru.on{filter:none;background:transparent;padding:0;user-select:text}
+.rw{margin:0 0 16px}
+textarea{display:block;width:100%;min-height:112px;max-height:52vh;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);
+  background:transparent;color:var(--tx);font:inherit;line-height:1.45;resize:none;outline:none;transition:border-color .2s;overflow-y:auto}
+textarea:focus{border-color:var(--acc)}
+textarea::placeholder{color:var(--hint)}
+.o{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;text-align:left;margin:0 0 8px;padding:12px 14px;border-radius:12px;
+  border:1.5px solid var(--line);background:transparent;cursor:pointer;transition:border-color .15s,background .15s,transform .1s}
+.o:last-child{margin-bottom:0}
+.o:active{transform:scale(.985)}
+.o .k{flex:0 0 26px;height:26px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--hint);transition:all .15s}
+.o .ot{flex:1;word-wrap:break-word}
+.o.sel{border-color:var(--acc);background:var(--tint)}
+.o.sel .k{background:var(--acc);border-color:var(--acc);color:var(--atx)}
+.nx{display:flex;justify-content:flex-end;margin-top:14px}
+.nb{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);color:var(--acc);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.nb svg{width:22px;height:22px}
+body.expired .q{opacity:.5;pointer-events:none}
+/* fallback send button (outside Telegram) */
+#send{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));height:52px;border:0;border-radius:14px;
+  background:var(--acc);color:var(--atx);font-weight:600;font-size:16px;cursor:pointer;transition:opacity .2s}
+#send:disabled{opacity:.4}
+/* results */
+.res .q{margin:0 0 12px}
+.chip{display:inline-block;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;margin:0 0 12px}
+.chip.g{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.chip.y{background:color-mix(in srgb,var(--amber) 20%,transparent);color:var(--amber)}
+.chip.r{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.chip.n{background:var(--soft);color:var(--hint)}
+.o.ok{border-color:var(--green);background:color-mix(in srgb,var(--green) 14%,var(--card))}
+.o.ok .k{background:var(--green);border-color:var(--green);color:#fff}
+.o.bad{border-color:var(--red);background:color-mix(in srgb,var(--red) 12%,var(--card))}
+.o.bad .k{background:var(--red);border-color:var(--red);color:#fff}
+.res .o{cursor:default}
+.lb{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--hint);margin:14px 0 4px}
+.ua,.ma{white-space:pre-wrap;word-wrap:break-word;font-size:15px}
+.ma{color:var(--sub);border-left:3px solid var(--line);padding-left:10px}
+.fb{font-size:15px;white-space:pre-wrap;margin-top:12px}
+/* error */
+.err{text-align:center;padding:72px 24px;color:var(--sub)}
+.err b{display:block;color:var(--tx);font-size:17px;margin:12px 0 6px}
+.err svg{width:44px;height:44px;color:var(--hint)}
+.fade{animation:fade .3s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style></head><body>
-<div id="t"></div><div id="app"></div><button id="send" hidden>Отправить</button>
+<div id="app"></div><button id="send" type="button" hidden>Отправить</button>
 <script>
 const TG=(window.Telegram&&Telegram.WebApp)||null;
-if(TG){TG.ready();TG.expand();}
+const IN_TG=!!(TG&&TG.initData);                       // really opened inside Telegram (not just the SDK in a browser)
+if(TG){try{TG.ready();TG.expand();}catch(e){}}
+if(IN_TG){document.documentElement.classList.add('tg');
+  try{TG.setHeaderColor('secondary_bg_color');TG.setBackgroundColor('secondary_bg_color')}catch(e){}
+  try{TG.disableVerticalSwipes&&TG.disableVerticalSwipes()}catch(e){}}
 const $=s=>document.querySelector(s);
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+const HF={sel(){try{TG.HapticFeedback.selectionChanged()}catch(e){}},tap(s){try{TG.HapticFeedback.impactOccurred(s||'light')}catch(e){}},
+  note(t){try{TG.HapticFeedback.notificationOccurred(t)}catch(e){}}};
+const ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 // Round data: ?d=<base64url(deflate-raw(JSON))>. Telegram adds its own params to the #fragment
 // (#tgWebAppData=...&tgWebAppVersion=...), so the data must not live in the bare fragment.
 function getRaw(){
@@ -48,47 +123,111 @@ async function decode(raw){
   const bytes=b64bytes(raw);let txt;
   if(fmt==='j'){txt=new TextDecoder().decode(bytes)}
   else{
-    if(typeof DecompressionStream==='undefined')throw new Error('this Telegram version cannot unpack the data (no DecompressionStream)');
+    if(typeof DecompressionStream==='undefined')throw new Error('no DecompressionStream');
     txt=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
   }
-  return JSON.parse(txt);
+  const D=JSON.parse(txt);
+  if(!D||!Array.isArray(D.q)||!D.q.length)throw new Error('empty round');
+  return D;
 }
-function ruLine(txt){const r=el('div','ru',txt);r.onclick=()=>r.classList.toggle('on');return r}
+function ruLine(txt){const w=el('div','rw'),r=el('span','ru',txt);r.onclick=()=>{r.classList.toggle('on');HF.sel()};w.appendChild(r);return w}
 const L='ABCDEFGHIJKL';
+function option(k,text){const b=el('button','o');b.type='button';b.appendChild(el('span','k',L[k]));b.appendChild(el('span','ot',text));return b}
+const store={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+
 function renderAsk(D){
-  const app=$('#app'),ans={};
-  D.q.forEach(q=>{
+  const app=$('#app'),KEY='quiz-draft-'+D.r,n=D.q.length,draft=store.get(KEY)||{},ans={};
+  let step=0,expired=false,sent=false;
+  D.q.forEach(q=>{const v=(draft.a||{})[q.i];if(!v)return;
+    if(q.t==='c'&&Number.isInteger(v.c)&&v.c<q.o.length)ans[q.i]={i:q.i,c:v.c};
+    else if(q.t!=='c'&&typeof v.x==='string'&&v.x.trim())ans[q.i]={i:q.i,x:v.x}});
+  const top=el('div');top.id='top';const steps=el('div');steps.id='steps';const timer=el('div');timer.id='timer';
+  top.appendChild(steps);if(D.dl)top.appendChild(timer);
+  const view=el('div');view.id='view';view.addEventListener('scroll',()=>{if(view.scrollLeft)view.scrollLeft=0});const track=el('div');track.id='track';view.appendChild(track);
+  app.appendChild(top);app.appendChild(view);app.classList.add('fade');
+  const pills=[],cards=[];
+  D.q.forEach((q,idx)=>{
+    const p=el('button','st',n>1?String(idx+1):'1');p.type='button';p.onclick=()=>{go(idx);HF.sel()};steps.appendChild(p);pills.push(p);
     const box=el('div','q');box.appendChild(el('div','en',q.en));if(q.ru)box.appendChild(ruLine(q.ru));
-    if(q.t==='c'){const bs=[];q.o.forEach((o,k)=>{const b=el('button','o',L[k]+') '+o);b.type='button';
-        b.onclick=()=>{bs.forEach(x=>x.classList.remove('sel'));b.classList.add('sel');ans[q.i]={i:q.i,c:k};upd()};bs.push(b);box.appendChild(b)})}
-    else{const ta=el('textarea');ta.placeholder='Answer in English…';ta.oninput=()=>{const v=ta.value.trim();if(v)ans[q.i]={i:q.i,x:v};else delete ans[q.i];upd()};box.appendChild(ta)}
-    app.appendChild(box)});
-  const btn=$('#send');btn.hidden=false;
-  function upd(){btn.disabled=Object.keys(ans).length===0}
-  upd();
-  btn.onclick=()=>{
-    const payload=JSON.stringify({r:D.r,a:Object.values(ans)});
-    let p=payload;while(new TextEncoder().encode(p).length>4096){ // trim longest text answer until it fits the 4096-byte sendData limit
-      const a=Object.values(ans).filter(x=>x.x).sort((x,y)=>y.x.length-x.x.length)[0];if(!a)break;a.x=a.x.slice(0,a.x.length-100);p=JSON.stringify({r:D.r,a:Object.values(ans)})}
-    btn.disabled=true;
-    if(TG&&TG.sendData){TG.sendData(p)}else{document.body.setAttribute('data-sent',p)}
-  };
-  const tick=()=>{const r=Math.max(0,Math.floor(D.dl-Date.now()/1000));$('#t').textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
-    if(r===0){btn.disabled=true}};tick();setInterval(tick,1000);
+    if(q.t==='c'){
+      const bs=[];q.o.forEach((o,k)=>{const b=option(k,o);if(ans[q.i]&&ans[q.i].c===k)b.classList.add('sel');
+        b.onclick=()=>{bs.forEach(x=>x.classList.remove('sel'));b.classList.add('sel');ans[q.i]={i:q.i,c:k};HF.sel();upd();
+          const nxt=D.q.findIndex((x,j)=>j>idx&&!ans[x.i]);if(nxt>=0)setTimeout(()=>{if(step===idx)go(nxt)},380)};
+        bs.push(b);box.appendChild(b)});
+    }else{
+      const ta=el('textarea');ta.placeholder='Answer in English…';ta.rows=4;ta.setAttribute('autocapitalize','sentences');ta.spellcheck=true;
+      if(ans[q.i])ta.value=ans[q.i].x;
+      const grow=()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight+3,window.innerHeight*.52)+'px'};
+      ta.oninput=()=>{const v=ta.value;if(v.trim())ans[q.i]={i:q.i,x:v};else delete ans[q.i];grow();upd()};
+      ta.addEventListener('focus',()=>{if(step!==idx)go(idx)});
+      box.appendChild(ta);box._grow=grow;
+    }
+    if(idx<n-1){const nx=el('div','nx'),nb=el('button','nb');nb.type='button';nb.innerHTML=ARROW;nb.setAttribute('aria-label','next');
+      nb.onclick=()=>{go(idx+1);HF.tap()};nx.appendChild(nb);box.appendChild(nx)}
+    track.appendChild(box);cards.push(box);
+  });
+  if(n<2)steps.style.visibility='hidden';
+  function go(i){step=Math.max(0,Math.min(n-1,i));track.style.transform='translateX(calc('+(-step*100)+'% - '+(step*24)+'px))';
+    cards.forEach((c,j)=>{c.setAttribute('aria-hidden',j!==step);c.style.opacity=j===step?1:0});
+    const a=document.activeElement;if(a&&a.tagName==='TEXTAREA'&&cards[step]!==a.closest('.q'))a.blur();
+    if(IN_TG&&TG.BackButton){try{step>0?TG.BackButton.show():TG.BackButton.hide()}catch(e){}}
+    pills.forEach((p,j)=>p.classList.toggle('cur',j===step));save()}
+  if(IN_TG&&TG.BackButton)try{TG.BackButton.onClick(()=>{go(step-1);HF.tap()})}catch(e){}
+  // swipe between cards
+  let sx=0,sy=0;view.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+  view.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.6){const t=step+(dx<0?1:-1);if(t>=0&&t<n){go(t);HF.tap()}}},{passive:true});
+  function save(){if(!sent)store.set(KEY,{a:ans,s:step,t:Date.now()})}
+  const fb=$('#send'),MB=IN_TG&&TG.MainButton?TG.MainButton:null;
+  function canSend(){return !expired&&!sent&&Object.keys(ans).length>0}
+  function upd(){
+    D.q.forEach((q,j)=>pills[j].classList.toggle('done',!!ans[q.i]));
+    if(MB){try{const on=canSend();MB.setParams({text:'Отправить',is_visible:!expired,is_active:on,
+        color:on?(TG.themeParams.button_color||'#2481cc'):(TG.themeParams.hint_color||'#8e8e93'),text_color:TG.themeParams.button_text_color||'#ffffff'})}catch(e){}}
+    else{fb.hidden=expired;fb.disabled=!canSend();document.body.classList.toggle('fb-btn',!expired)}
+    save()}
+  function submit(){
+    if(!canSend())return;
+    const list=()=>D.q.filter(q=>ans[q.i]).map(q=>ans[q.i].x!=null?{i:q.i,x:ans[q.i].x.trim()}:{i:q.i,c:ans[q.i].c});
+    let a=list(),p=JSON.stringify({r:D.r,a});
+    while(new TextEncoder().encode(p).length>4096){   // sendData limit: trim the longest text answer
+      const t=a.filter(x=>x.x).sort((x,y)=>y.x.length-x.x.length)[0];if(!t)break;t.x=t.x.slice(0,t.x.length-100);p=JSON.stringify({r:D.r,a})}
+    sent=true;store.del(KEY);HF.note('success');
+    if(MB){try{MB.showProgress&&MB.showProgress()}catch(e){}}else fb.disabled=true;
+    if(IN_TG&&TG.sendData)TG.sendData(p);else document.body.setAttribute('data-sent',p);
+  }
+  if(MB)MB.onClick(submit);fb.onclick=submit;
+  go(Math.min(+draft.s||0,n-1));upd();
+  requestAnimationFrame(()=>cards.forEach(c=>c._grow&&c._grow()));
+  if(D.dl){const tick=()=>{const r=Math.max(0,Math.floor(D.dl-Date.now()/1000));
+      timer.textContent=Math.floor(r/60)+':'+String(r%60).padStart(2,'0');timer.classList.toggle('warn',r<60);
+      if(r===0&&!expired){expired=true;document.body.classList.add('expired');HF.note('warning');upd();clearInterval(iv)}};
+    const iv=setInterval(tick,1000);tick()}
 }
+function verdictChip(s){const c=/^Верно/.test(s)?'g':/^Неверно/.test(s)?'r':/^\d+\/10$/.test(s)?(+s.split('/')[0]>=8?'g':+s.split('/')[0]>=5?'y':'r'):'n';return el('div','chip '+c,s)}
 function renderRes(D){
-  const app=$('#app');
-  D.q.forEach(q=>{const box=el('div','q');box.appendChild(el('div','en',q.en));if(q.ru)box.appendChild(ruLine(q.ru));
-    if(q.t==='c'){q.o.forEach((o,k)=>{const b=el('button','o',L[k]+') '+o);b.disabled=true;
-        if(q.k.indexOf(k)>=0)b.classList.add('ok');else if(q.ch===k)b.classList.add('bad');box.appendChild(b)})}
-    else if(q.ua){box.appendChild(el('div','ma',q.ua))}
-    box.appendChild(el('div','sc',q.s));if(q.fb)box.appendChild(el('div','fb',q.fb));
-    if(q.ma)box.appendChild(el('div','ma',q.ma));app.appendChild(box)});
+  const app=$('#app');app.classList.add('res','fade');
+  D.q.forEach(q=>{const box=el('div','q');box.appendChild(verdictChip(q.s));box.appendChild(el('div','en',q.en));if(q.ru)box.appendChild(ruLine(q.ru));
+    if(q.t==='c'){q.o.forEach((o,k)=>{const b=option(k,o);b.disabled=true;
+        if(q.k.indexOf(k)>=0)b.classList.add('ok');else if(q.ch===k)b.classList.add('bad');box.appendChild(b)});
+      if(q.fb)box.appendChild(el('div','fb',q.fb))}
+    else{if(q.ua){box.appendChild(el('div','lb','Твой ответ'));box.appendChild(el('div','ua',q.ua))}
+      if(q.fb)box.appendChild(el('div','fb',q.fb));
+      if(q.ma){box.appendChild(el('div','lb','Эталон'));box.appendChild(el('div','ma',q.ma))}}
+    app.appendChild(box)});
+}
+function showError(code){
+  const a=$('#app');a.innerHTML='';const e=el('div','err fade');
+  e.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>';
+  e.appendChild(el('b',null,code==='nodata'?'Нет вопросов в ссылке':'Не удалось открыть вопросы'));
+  e.appendChild(el('div',null,'Открой раунд заново кнопкой «Ответить».'));a.appendChild(e);
+  document.body.setAttribute('data-error',code);
 }
 (async()=>{
   const h=getRaw();
-  if(!h){$('#app').textContent='Нет данных вопроса в ссылке. Нажми «Ответить» под последним сообщением бота.';document.body.setAttribute('data-error','nodata');return}
+  if(!h){showError('nodata');return}
   try{const D=await decode(h);(D.m==='res'?renderRes:renderAsk)(D);document.body.setAttribute('data-ready','1')}
-  catch(e){$('#app').textContent='Не удалось открыть вопросы: '+e.message+' (len '+h.length+')';document.body.setAttribute('data-error',e.message)}
+  catch(e){showError(String(e&&e.message||e))}
 })();
 </script></body></html>
