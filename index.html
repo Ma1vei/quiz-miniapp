@@ -24,11 +24,34 @@ const TG=(window.Telegram&&Telegram.WebApp)||null;
 if(TG){TG.ready();TG.expand();}
 const $=s=>document.querySelector(s);
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
-async function decode(h){
-  const b=atob(h.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((h.length+3)%4));
-  const bytes=Uint8Array.from(b,c=>c.charCodeAt(0));
-  const s=new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')));
-  return JSON.parse(await s.text());
+// Round data: ?d=<base64url(deflate-raw(JSON))>. Telegram adds its own params to the #fragment
+// (#tgWebAppData=...&tgWebAppVersion=...), so the data must not live in the bare fragment.
+function getRaw(){
+  const q=new URLSearchParams(location.search).get('d');
+  if(q)return q;
+  let h=location.hash.replace(/^#/,'');           // legacy links: #<data>&tgWebAppData=...  or  #d=<data>&...
+  const hp=new URLSearchParams(h).get('d');
+  if(hp)return hp;
+  const first=h.split(/[&?]/)[0];
+  if(first&&first.indexOf('=')<0&&first.indexOf('tgWebApp')!==0)return first;
+  return '';
+}
+function b64bytes(s){
+  try{s=decodeURIComponent(s)}catch(e){}
+  s=s.replace(/\s+/g,'').replace(/-/g,'+').replace(/_/g,'/');
+  if(!/^[A-Za-z0-9+\/]*=*$/.test(s))throw new Error('bad data characters');
+  s=s.replace(/=+$/,'');s+='==='.slice((s.length+3)%4);
+  const b=atob(s);return Uint8Array.from(b,c=>c.charCodeAt(0));
+}
+async function decode(raw){
+  let fmt='z';if(/^[zj]\./.test(raw)){fmt=raw[0];raw=raw.slice(2)}
+  const bytes=b64bytes(raw);let txt;
+  if(fmt==='j'){txt=new TextDecoder().decode(bytes)}
+  else{
+    if(typeof DecompressionStream==='undefined')throw new Error('this Telegram version cannot unpack the data (no DecompressionStream)');
+    txt=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  }
+  return JSON.parse(txt);
 }
 function ruLine(txt){const r=el('div','ru',txt);r.onclick=()=>r.classList.toggle('on');return r}
 const L='ABCDEFGHIJKL';
@@ -63,9 +86,9 @@ function renderRes(D){
     if(q.ma)box.appendChild(el('div','ma',q.ma));app.appendChild(box)});
 }
 (async()=>{
-  const h=location.hash.slice(1);
-  if(!h){$('#app').textContent='Нет данных';return}
+  const h=getRaw();
+  if(!h){$('#app').textContent='Нет данных вопроса в ссылке. Нажми «Ответить» под последним сообщением бота.';document.body.setAttribute('data-error','nodata');return}
   try{const D=await decode(h);(D.m==='res'?renderRes:renderAsk)(D);document.body.setAttribute('data-ready','1')}
-  catch(e){$('#app').textContent='Ошибка: '+e.message;document.body.setAttribute('data-error',e.message)}
+  catch(e){$('#app').textContent='Не удалось открыть вопросы: '+e.message+' (len '+h.length+')';document.body.setAttribute('data-error',e.message)}
 })();
 </script></body></html>
