@@ -89,7 +89,7 @@ body.expired .q{opacity:.5;pointer-events:none}
 <div id="app"></div><button id="send" type="button" hidden>Отправить</button>
 <script>
 const TG=(window.Telegram&&Telegram.WebApp)||null;
-const IN_TG=!!(TG&&TG.initData);                       // really opened inside Telegram (not just the SDK in a browser)
+const IN_TG=!!(TG&&(TG.initData||(TG.platform&&TG.platform!=='unknown')));   // keyboard-button Mini Apps get EMPTY initData, so also trust platform                       // really opened inside Telegram (not just the SDK in a browser)
 if(TG){try{TG.ready();TG.expand();}catch(e){}}
 if(IN_TG){document.documentElement.classList.add('tg');
   try{TG.setHeaderColor('secondary_bg_color');TG.setBackgroundColor('secondary_bg_color')}catch(e){}
@@ -195,7 +195,7 @@ function renderAsk(D){
       const t=a.filter(x=>x.x).sort((x,y)=>y.x.length-x.x.length)[0];if(!t)break;t.x=t.x.slice(0,t.x.length-100);p=JSON.stringify({r:D.r,a})}
     sent=true;store.del(KEY);HF.note('success');
     if(MB){try{MB.showProgress&&MB.showProgress()}catch(e){}}else fb.disabled=true;
-    if(IN_TG&&TG.sendData)TG.sendData(p);else document.body.setAttribute('data-sent',p);
+    if(TG&&TG.sendData&&TG.platform&&TG.platform!=='unknown'){try{TG.sendData(p)}catch(e){sent=false;HF.note('error');try{TG.showAlert('Не удалось отправить: '+e.message)}catch(_){alert('Не удалось отправить')}if(MB){try{MB.hideProgress()}catch(_){}}else fb.disabled=false}}else document.body.setAttribute('data-sent',p);
   }
   if(MB)MB.onClick(submit);fb.onclick=submit;
   go(Math.min(+draft.s||0,n-1));upd();
